@@ -4,9 +4,10 @@ import gzip
 from tqdm import tqdm
 from PIL import Image, UnidentifiedImageError
 
-from retriever import Retriever
-from generator import Generator
-from rag_model import RAGModel
+from src.retriever import Retriever
+from src.generator import Generator
+from src.rag_model import RAGModel
+from src.utils import load_filtered_data, load_images, load_text_corpus
 
 
 # =====================
@@ -14,61 +15,24 @@ from rag_model import RAGModel
 # =====================
 
 CACHE_DIR = "/scratch/shayan/hf_cache"
-IMAGE_DIR = "final_dataset_images"
+
+DATASET_NAME = "mmqa"
+DATASET_ROOT = f"datasets/{DATASET_NAME}"
 
 RETRIEVER_ID = "openai/clip-vit-base-patch32"
 GENERATOR_ID = "llava-hf/llava-1.5-7b-hf"
 
-FILTERED_DATA_PATH = "dataset/MMQA_train_image_text_only.jsonl.gz"
-TEXTS_PATH = "dataset/MMQA_texts.jsonl.gz"
+OUTPUT_FILE = f"results/rag_clip_llava_{DATASET_NAME}_results.json"
 
-OUTPUT_FILE = f"rag_clip_llava_results.json"
-
-
-# =====================
-# Utility functions
-# =====================
-
-def load_filtered_data(path):
-    data = []
-    with gzip.open(path, "rt", encoding="utf-8") as f:
-        for line in f:
-            data.append(json.loads(line))
-    return data
-
-
-def load_text_corpus(path):
-    corpus = {}
-    with gzip.open(path, "rt", encoding="utf-8") as f:
-        for line in f:
-            ex = json.loads(line)
-            corpus[ex["id"]] = ex["text"]
-    return corpus
-
-
-def load_images(image_ids):
-    images = []
-    valid_ids = []
-
-    for img_id in image_ids:
-        for ext in [".jpg", ".png", ".jpeg"]:
-            p = os.path.join(IMAGE_DIR, img_id + ext)
-            if not os.path.exists(p):
-                continue
-
-            try:
-                img = Image.open(p)
-                img = img.convert("RGB")
-            except (UnidentifiedImageError, OSError) as e:
-                # Corrupt or unreadable image → skip
-                print(f"[WARN] Skipping image {img_id}{ext}: {e}")
-                break
-
-            images.append(img)
-            valid_ids.append(img_id)
-            break
-
-    return images, valid_ids
+FILTERED_DATA_PATH = (
+    f"{DATASET_ROOT}/MMQA_train_image_text_only.jsonl.gz"
+)
+TEXTS_PATH = (
+    f"{DATASET_ROOT}/MMQA_texts.jsonl.gz"
+)
+IMAGE_DIR = (
+    f"{DATASET_ROOT}/final_dataset_images"
+)
 
 
 
@@ -107,7 +71,7 @@ def main():
         gold_answers = ex.get("answers", [])
 
         # Load candidate images
-        images, image_ids = load_images(ex["metadata"]["image_doc_ids"])
+        images, image_ids = load_images(IMAGE_DIR, ex["metadata"]["image_doc_ids"])
 
         # Load candidate texts
         texts = [
