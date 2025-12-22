@@ -42,9 +42,12 @@ datasets/mmqa/final_dataset_images/
 
 After setup, the MMQA dataset directory should look like:
 
+```text
 datasets/mmqa/
 ├── MMQA_train_image_text_only.jsonl.gz
 ├── MMQA_texts.jsonl.gz
 └── final_dataset_images/
     ├── <image_id>.jpg
     └── ...
+```
+
