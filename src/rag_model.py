@@ -46,7 +46,7 @@ class RAGModel:
             text_scores[top_text_idx],
         )
     
-
+    
     def build_prompt(
         self,
         question: str,
@@ -67,11 +67,14 @@ class RAGModel:
             f"USER: {image_tokens}\n"
             "Use the following information to answer the question.\n\n"
             f"{context}\n\n"
-            f"Question: {question}\n"
+            f"Question: {question}\n\n"
+            "Answer with ONLY the final answer. "
+            "Do NOT include explanations, descriptions, or extra text.\n"
             "ASSISTANT:"
         )
 
         return prompt
+
 
 
     def generate(
