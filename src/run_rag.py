@@ -35,7 +35,6 @@ IMAGE_DIR = (
 )
 
 
-
 def main():
 
     print("Loading data...")

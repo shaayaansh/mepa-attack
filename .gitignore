@@ -16,4 +16,5 @@ rag_*_results.json
 
 # Optional: ignore large dataset artifacts
 datasets/*/images/
-
+datasets/*/final_dataset_images/
+datasets/**/*.zip
