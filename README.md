@@ -11,15 +11,13 @@ datasets such as MMQA and WebQA.
 
 ## Repository Structure
 
+```text
 mepa-attack/
-├── src/ # Core RAG components (retriever, generator, RAGModel)
-├── datasets/ # In-repo dataset organization (MMQA, WebQA, etc.)
-├── results/ # Generated RAG outputs (not committed)
+├── src/                # Core RAG components (retriever, generator, RAGModel)
+├── datasets/           # In-repo dataset organization (MMQA, WebQA, etc.)
+├── results/            # Generated RAG outputs (not committed)
 ├── download_images.py
 └── README.md
-
-Large datasets and images are **not committed to Git** and must be downloaded
-locally.
 
 ---
 
@@ -31,13 +29,15 @@ From the repository root, run:
 
 ```bash
 python download_images.py
+```
 
 
 This script will download and extract the MMQA image archive and store the
 images at:
 
+```bash
 datasets/mmqa/final_dataset_images/
-
+```
 
 After setup, the MMQA dataset directory should look like:
 
