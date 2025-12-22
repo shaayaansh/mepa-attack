@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# HuggingFace / caches
+hf_cache/
+.cache/
+
+# Results
+results/
+rag_*_results.json
+
+# Optional: ignore large dataset artifacts
+datasets/*/images/
+
