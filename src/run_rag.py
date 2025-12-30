@@ -7,8 +7,7 @@ from PIL import Image, UnidentifiedImageError
 from src.retriever import Retriever
 from src.generator import Generator
 from src.rag_model import RAGModel
-from src.utils import load_filtered_data, load_images, load_text_corpus
-
+from src.utils import load_mmqa_json, load_images_from_metadata
 
 # =====================
 # Configuration
@@ -16,32 +15,28 @@ from src.utils import load_filtered_data, load_images, load_text_corpus
 
 CACHE_DIR = "/scratch/shayan/hf_cache"
 
-DATASET_NAME = "mmqa"
+DATASET_NAME = "mmqa-mmpoisonrag"
 DATASET_ROOT = f"datasets/{DATASET_NAME}"
+
+IMAGE_METADATA_PATH = f"{DATASET_ROOT}/MMQA_image_metadata.json"
+DATA_PATH = f"{DATASET_ROOT}/MMQA_test_image.json"
+
+IMAGE_DIR = "datasets/mmqa/final_dataset_images" 
 
 RETRIEVER_ID = "openai/clip-vit-base-patch32"
 GENERATOR_ID = "llava-hf/llava-1.5-7b-hf"
 
-OUTPUT_FILE = f"results/rag_clip_llava_{DATASET_NAME}_results.json"
-
-FILTERED_DATA_PATH = (
-    f"{DATASET_ROOT}/MMQA_train_image_text_only.jsonl.gz"
-)
-TEXTS_PATH = (
-    f"{DATASET_ROOT}/MMQA_texts.jsonl.gz"
-)
-IMAGE_DIR = (
-    f"{DATASET_ROOT}/final_dataset_images"
-)
+OUTPUT_FILE = "results/rag_clip_llava_mmqa_clean_caption_baseline.json"
 
 
 def main():
 
-    print("Loading data...")
-    data = load_filtered_data(FILTERED_DATA_PATH)
-    text_corpus = load_text_corpus(TEXTS_PATH)
-
-    print(f"Loaded {len(data)} filtered examples")
+    print("Loading image metadata...")
+    with open(IMAGE_METADATA_PATH, "r") as f:
+        image_metadata = json.load(f)
+    
+    data = load_mmqa_json(DATA_PATH)
+    print(f"Loaded {len(data)} MMQA test examples")
 
     print("Initializing models...")
     retriever = Retriever(
@@ -69,15 +64,20 @@ def main():
         question = ex["question"]
         gold_answers = ex.get("answers", [])
 
-        # Load candidate images
-        images, image_ids = load_images(IMAGE_DIR, ex["metadata"]["image_doc_ids"])
+        images, image_ids = load_images_from_metadata(
+            IMAGE_DIR,
+            ex["metadata"]["image_doc_ids"],
+            image_metadata
+        )
 
         # Load candidate texts
+        # Use image captions as the text modality
         texts = [
-            text_corpus[doc_id]
-            for doc_id in ex["metadata"]["text_doc_ids"]
-            if doc_id in text_corpus
+            image_metadata[img_id]["caption"]
+            for img_id in image_ids
+            if img_id in image_metadata and image_metadata[img_id].get("caption")
         ]
+
 
         if len(images) == 0 or len(texts) == 0:
             continue
@@ -98,19 +98,28 @@ def main():
             })
             continue
 
+        retrieved_image_ids = [
+            image_ids[i] for i in output["retrieved_image_indices"]
+        ]
+
+        retrieved_captions = [
+            texts[i] for i in output["retrieved_text_indices"]
+        ]
+
         results.append({
             "qid": ex.get("qid"),
             "question": question,
             "model_answer": output["answer"],
             "gold_answers": gold_answers,
 
-            # Original candidates
+            # Candidate pool
             "associated_images": image_ids,
-            "associated_docs": ex["metadata"]["text_doc_ids"],
+            "associated_captions": texts,
 
-            # Retrieved evidence
-            "retrieved_images": image_ids[:len(output["retrieved_images"])],
-            "retrieved_docs": output["retrieved_texts"],
+            "retrieved_image_ids": retrieved_image_ids,
+            "retrieved_captions": retrieved_captions,
+            "image_scores": output["image_scores"],
+            "text_scores": output["text_scores"],
         })
 
     print(f"Saving results to {OUTPUT_FILE}")

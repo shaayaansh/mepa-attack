@@ -18,3 +18,4 @@ rag_*_results.json
 datasets/*/images/
 datasets/*/final_dataset_images/
 datasets/**/*.zip
+datasets/WebQA_data_first_release/

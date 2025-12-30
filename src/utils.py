@@ -4,12 +4,9 @@ import gzip
 from PIL import Image, UnidentifiedImageError
 
 
-def load_filtered_data(path):
-    data = []
-    with gzip.open(path, "rt", encoding="utf-8") as f:
-        for line in f:
-            data.append(json.loads(line))
-    return data
+def load_mmqa_json(path):
+    with open(path, "r") as f:
+        return json.load(f)
 
 
 def load_text_corpus(path):
@@ -21,26 +18,26 @@ def load_text_corpus(path):
     return corpus
 
 
-def load_images(IMAGE_DIR, image_ids):
+def load_images_from_metadata(image_dir, image_doc_ids, image_metadata):
     images = []
     valid_ids = []
 
-    for img_id in image_ids:
-        for ext in [".jpg", ".png", ".jpeg"]:
-            p = os.path.join(IMAGE_DIR, img_id + ext)
-            if not os.path.exists(p):
-                continue
+    for img_id in image_doc_ids:
+        meta = image_metadata.get(img_id)
+        if meta is None:
+            continue
 
-            try:
-                img = Image.open(p)
-                img = img.convert("RGB")
-            except (UnidentifiedImageError, OSError) as e:
-                # Corrupt or unreadable image → skip
-                print(f"[WARN] Skipping image {img_id}{ext}: {e}")
-                break
+        img_path = os.path.join(image_dir, meta["path"])
+        if not os.path.exists(img_path):
+            continue
 
-            images.append(img)
-            valid_ids.append(img_id)
-            break
+        try:
+            img = Image.open(img_path).convert("RGB")
+        except (UnidentifiedImageError, OSError) as e:
+            print(f"[WARN] Skipping image {img_path}: {e}")
+            continue
+
+        images.append(img)
+        valid_ids.append(img_id)
 
     return images, valid_ids
