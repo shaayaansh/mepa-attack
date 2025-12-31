@@ -18,7 +18,12 @@ os.environ["OPENAI_API_KEY"] = load_openai_key()
 
 client = OpenAI()
 
-INPUT_IMAGE_METADATA = "datasets/mmqa/MMQA_image_metadata.json"
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+INPUT_IMAGE_METADATA = os.path.join(
+    PROJECT_ROOT,
+    "datasets/mmqa-mmpoisonrag/MMQA_image_metadata.json"
+)
+
 OUTPUT_POISONED_METADATA = "datasets/mmqa-mmpoisonrag/MMQA_image_metadata_poisoned.json"
 
 # Example attacker payload (can be swapped per experiment)
@@ -89,12 +94,36 @@ def build_poison_prompt(
 
 def main():
 
+    print("Loading MMQA test ImageQ data...")
+    TEST_DATA_PATH = os.path.join(
+        PROJECT_ROOT,
+        "datasets/mmqa-mmpoisonrag/MMQA_test_image.json"
+    )
+
+    with open(TEST_DATA_PATH, "r") as f:
+        test_data = json.load(f)
+
+    # Collect unique image_doc_ids actually used in the test set
+    gold_image_ids = set()
+
+    for ex in test_data:
+        for ans in ex.get("answers", []):
+            for img_inst in ans.get("image_instances", []):
+                gold_image_ids.add(img_inst["doc_id"])
+
+    print(f"Found {len(gold_image_ids)} gold-supporting images")
+
     with open(INPUT_IMAGE_METADATA, "r") as f:
         clean_metadata = json.load(f)
 
     poisoned_metadata = {}
 
-    for img_id, meta in tqdm(clean_metadata.items()):
+    for img_id in tqdm(gold_image_ids):
+
+        if img_id not in clean_metadata:
+            continue
+
+        meta = clean_metadata[img_id]
         image_context = meta["caption"]
 
         prompt = build_poison_prompt(
@@ -117,7 +146,9 @@ def main():
         for line in raw_output.splitlines():
             line = line.strip()
             if line and line[0].isdigit():
-                candidates.append(line.split(".", 1)[1].strip().strip("“”"))
+                candidates.append(
+                    line.split(".", 1)[1].strip().strip("“”")
+                )
 
         poisoned_metadata[img_id] = {
             "path": meta["path"],
@@ -125,11 +156,14 @@ def main():
             "poisoned_candidates": candidates
         }
 
-    os.makedirs(os.path.dirname(OUTPUT_POISONED_METADATA), exist_ok=True)
-    with open(OUTPUT_POISONED_METADATA, "w", encoding="utf-8") as f:
+    with open(
+        "datasets/mmqa-mmpoisonrag/MMQA_image_metadata_poisoned.json",
+        "w",
+        encoding="utf-8"
+    ) as f:
         json.dump(poisoned_metadata, f, indent=2)
 
-    print(f"Saved poisoned metadata to {OUTPUT_POISONED_METADATA}")
+    print(f"Saved poisoned metadata for {len(poisoned_metadata)} images")
 
 if __name__ == "__main__":
     main()
