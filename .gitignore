@@ -20,4 +20,5 @@ datasets/*/final_dataset_images/
 datasets/**/*.zip
 datasets/WebQA_data_first_release/
 
-/scratch/shayan/Projects/mepa-attack/OpenAI_key.txt
+# Secrets
+OpenAI_key.txt
