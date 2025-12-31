@@ -9,7 +9,7 @@ def normalize(text: str) -> str:
     Normalize answers for fair comparison.
     Lowercase, remove punctuation and articles, collapse whitespace.
     """
-    if text is None:
+    if not text:
         return ""
 
     text = text.lower()
@@ -24,7 +24,7 @@ def extract_final_answer(model_answer: str) -> str:
     Extract the model's final answer.
     Assumes chat-style output with 'ASSISTANT:'.
     """
-    if model_answer is None:
+    if not model_answer:
         return ""
 
     if "ASSISTANT:" in model_answer:
@@ -35,9 +35,16 @@ def extract_final_answer(model_answer: str) -> str:
 
 def exact_match(pred: str, golds: List[str]) -> bool:
     pred_norm = normalize(pred)
+
     for g in golds:
-        if pred_norm == normalize(g):
+        gold_norm = normalize(g)
+
+        # Allow singular/plural mismatch (horse vs horses)
+        if pred_norm == gold_norm:
             return True
+        if pred_norm.rstrip("s") == gold_norm.rstrip("s"):
+            return True
+
     return False
 
 
@@ -50,28 +57,33 @@ def evaluate(results_path: str):
     skipped = 0
 
     for ex in results:
+
         # Skip failed generations
         if "error" in ex:
             skipped += 1
             continue
 
         model_answer = extract_final_answer(ex.get("model_answer", ""))
+
         gold_answers = [
-            g["answer"] for g in ex.get("gold_answers", [])
-            if "answer" in g
+            g["answer"]
+            for g in ex.get("gold_answers", [])
+            if isinstance(g, dict) and "answer" in g
         ]
 
-        if not gold_answers:
+        if not model_answer or not gold_answers:
             skipped += 1
             continue
 
         total += 1
+
         if exact_match(model_answer, gold_answers):
             correct += 1
 
     accuracy = correct / total if total > 0 else 0.0
 
     print("==== RAG Evaluation ====")
+    print(f"Results file:    {results_path}")
     print(f"Total evaluated: {total}")
     print(f"Correct (EM):    {correct}")
     print(f"Skipped:         {skipped}")
