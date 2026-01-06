@@ -80,10 +80,8 @@ def main():
         if not images:
             continue
 
-        # =========================
+        
         # Build TEXT pool
-        # =========================
-
         texts = []
 
         # include ALL clean captions
@@ -93,15 +91,20 @@ def main():
 
         # Inject exactly ONE poisoned caption (if enabled)
         injected_poison = None
+        
         if USE_POISONED_CAPTIONS and poisoned_metadata is not None:
             for img_id in image_ids:
-                if (
-                    img_id in poisoned_metadata
-                    and poisoned_metadata[img_id]["poisoned_candidates"]
-                ):
-                    injected_poison = poisoned_metadata[img_id]["poisoned_candidates"][0]
-                    texts.append(injected_poison)
-                    break 
+                if img_id not in poisoned_metadata:
+                    continue
+
+                for poison_entry in poisoned_metadata[img_id].get("poisoned", []):
+                    if poison_entry["query"] == question:
+                        injected_poison = poison_entry["poisoned_candidates"][0]
+                        texts.append(injected_poison)
+                        break
+
+                if injected_poison is not None:
+                    break
 
         if not texts:
             continue

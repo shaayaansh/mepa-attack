@@ -41,3 +41,28 @@ def load_images_from_metadata(image_dir, image_doc_ids, image_metadata):
         valid_ids.append(img_id)
 
     return images, valid_ids
+
+
+def clean_candidate(c: str) -> str:
+    """
+    Normalize a poisoned caption so it contains only the caption text.
+    """
+    c = c.strip()
+
+    # Remove surrounding quotes (straight or curly)
+    c = c.strip('"').strip("“”")
+
+    # Remove common prefix artifacts
+    prefixes = [
+        "Candidate caption 1:",
+        "Candidate caption 2:",
+        "Candidate caption 3:",
+        "Candidate caption 1",
+        "Candidate caption 2",
+        "Candidate caption 3",
+    ]
+    for p in prefixes:
+        if c.startswith(p):
+            c = c[len(p):].strip()
+
+    return c
