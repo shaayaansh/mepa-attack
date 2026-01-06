@@ -95,3 +95,21 @@ From the repository root:
 python -m src.generate_attack
 ```
 
+This script will:
+
+1. Load MMQA test questions and gold image supports
+2. Generate query-specific poisoned captions by conditioning on:
+   - the image’s clean caption,
+   - the user query,
+   - the ground-truth answer (to generate a plausible contradiction)
+3. Clean and filter generated captions
+4. Drop failed generations
+5. Save the poisoned metadata to:
+
+```text
+datasets/mmqa-mmpoisonrag/MMQA_image_metadata_poisoned.json
+```
+
+Each entry is keyed by image ID and may contain multiple poisoned captions
+corresponding to different queries.
+
