@@ -113,3 +113,32 @@ datasets/mmqa-mmpoisonrag/MMQA_image_metadata_poisoned.json
 Each entry is keyed by image ID and may contain multiple poisoned captions
 corresponding to different queries.
 
+
+## Evaluating RAG Performance
+
+After running the RAG pipeline, evaluate the generated results using the
+evaluation script.
+
+From the repository root, run:
+
+```bash
+python src/eval_rag.py path/to/results.json
+```
+
+Example:
+
+```bash
+python src/eval_rag.py results/rag_clip_llava_mmqa_poisoned.json
+```
+
+This script will:
+
+1. Load the RAG output JSON file
+2. Compare model-generated answers against gold answers
+3. Compute exact-match (EM) accuracy
+4. Report the total number of evaluated questions and skipped examples
+
+The evaluation output is printed directly to the terminal and can be used to
+compare clean versus poisoned RAG performance.
+
+
