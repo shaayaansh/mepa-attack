@@ -51,3 +51,47 @@ datasets/mmqa/
     └── ...
 ```
 
+
+## Generating Metadata poisoning attack
+### Overview
+We model metadata poisoning by generating malicious image captions
+that:
+remain visually plausible for a given image,
+are semantically relevant to a user query,
+contradict the true answer, and
+are indexed by the retriever like normal metadata.
+The attack is query-specific and does not modify images or models.
+
+### Intended behavior 
+
+For each RAG query, we construct a candidate text pool as follows:
+
+```python
+Before (clean):
+texts = [
+    clean_caption(img_1),
+    clean_caption(img_2),
+    clean_caption(img_3)
+]
+
+After (poisoned):
+texts = [
+    clean_caption(img_1),
+    clean_caption(img_2),
+    clean_caption(img_3),
+    poisoned_caption(img_k)   # exactly ONE injected caption
+]
+```
+
+Only one poisoned caption is injected per query, corresponding to a
+gold-supporting image.
+
+---
+
+### Running the Attack Generator
+
+From the repository root:
+```python
+python -m src.generate_attack
+```
+
