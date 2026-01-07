@@ -117,18 +117,13 @@ corresponding to different queries.
 ## Evaluating RAG Performance
 
 After running the RAG pipeline, evaluate the generated results using the
-evaluation script.
+evaluation script. The results file is automatically inferred from the dataset
+name and whether the run is clean or poisoned.
 
 From the repository root, run:
 
 ```bash
-python src/eval_rag.py path/to/results.json
-```
-
-Example:
-
-```bash
-python src/eval_rag.py results/rag_clip_llava_mmqa_poisoned.json
+python src/eval_rag.py --dataset_name <mmqa|webqa> --split <clean|poisoned>
 ```
 
 This script will:

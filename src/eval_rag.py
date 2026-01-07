@@ -5,6 +5,19 @@ import argparse
 from typing import List
 
 
+BASE_RESULTS_DIR = "/scratch/shayan/Projects/mepa-attack/results"
+
+RESULTS_TEMPLATE = {
+    "mmqa": {
+        "clean": "rag_clip_llava_mmqa_clean_caption_baseline.json",
+        "poisoned": "rag_clip_llava_mmqa_poisoned.json",
+    },
+    "webqa": {
+        "clean": "rag_clip_llava_webqa_clean_caption_baseline.json",
+        "poisoned": "rag_clip_llava_webqa_poisoned.json",
+    },
+}
+
 def normalize(text: str) -> str:
     """
     Normalize answers for fair comparison.
@@ -82,7 +95,16 @@ def exact_match_webqa(pred: str, golds: List[str], qcate: str = None) -> bool:
 
 
 
-def evaluate(results_path: str, dataset: str):
+def evaluate(dataset: str, split: str):
+    try:
+        filename = RESULTS_TEMPLATE[dataset][split]
+    except KeyError:
+        raise ValueError(
+            f"Invalid combination: dataset_name={dataset}, split={split}"
+        )
+
+    results_path = f"{BASE_RESULTS_DIR}/{filename}"
+
     with open(results_path, "r", encoding="utf-8") as f:
         results = json.load(f)
 
@@ -141,16 +163,24 @@ def evaluate(results_path: str, dataset: str):
     print(f"Accuracy:        {accuracy:.4f}")
 
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("results", help="Path to RAG results JSON")
+
     parser.add_argument(
-        "--dataset",
+        "--dataset_name",
         choices=["mmqa", "webqa"],
         required=True,
-        help="Dataset type for evaluation"
+        help="Dataset to evaluate"
+    )
+
+    parser.add_argument(
+        "--split",
+        choices=["clean", "poisoned"],
+        required=True,
+        help="Evaluate clean or poisoned results"
     )
 
     args = parser.parse_args()
-    evaluate(args.results, args.dataset)
+
+    evaluate(args.dataset_name, args.split)
+
