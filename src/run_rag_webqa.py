@@ -25,7 +25,7 @@ POISONED_METADATA_PATH = f"{DATASET_ROOT}/WebQA_image_metadata_poisoned.json"
 RETRIEVER_ID = "openai/clip-vit-base-patch32"
 GENERATOR_ID = "llava-hf/llava-1.5-7b-hf"
 
-USE_POISONED_CAPTIONS = False  # False = baseline, True = attack
+USE_POISONED_CAPTIONS = True  # False = baseline, True = attack
 
 OUTPUT_FILE = (
     "results/rag_clip_llava_webqa_poisoned.json"
@@ -34,18 +34,10 @@ OUTPUT_FILE = (
 )
 
 
-# =========================
-# Helpers
-# =========================
-
 def load_webqa_image(image_id):
     path = os.path.join(IMAGE_DIR, f"{image_id}.jpg")
     return Image.open(path).convert("RGB")
 
-
-# =========================
-# Main
-# =========================
 
 def main():
 
@@ -109,25 +101,31 @@ def main():
         if not images or not texts:
             continue
 
-        # =========================
         # Inject exactly ONE poisoned caption
-        # =========================
-
         injected_poison = None
 
         if USE_POISONED_CAPTIONS and poisoned_metadata is not None:
+            q_norm = " ".join(question.split()).strip().lower()
+
             for img_id in image_ids:
-                if img_id not in poisoned_metadata:
+                key = str(img_id)   # type normalization
+
+                if key not in poisoned_metadata:
                     continue
 
-                for poison_entry in poisoned_metadata[img_id].get("poisoned", []):
-                    if poison_entry["query"] == question:
+                for poison_entry in poisoned_metadata[key].get("poisoned", []):
+                    pq = poison_entry.get("query", "")
+                    pq_norm = " ".join(pq.split()).strip().lower()
+
+                    # robust query matching
+                    if pq_norm == q_norm:
                         injected_poison = poison_entry["poisoned_candidates"][0]
                         texts.append(injected_poison)
                         break
 
                 if injected_poison is not None:
                     break
+
 
         try:
             output = rag.generate(
