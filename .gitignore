@@ -19,6 +19,7 @@ datasets/*/images/
 datasets/*/final_dataset_images/
 datasets/**/*.zip
 datasets/WebQA_data_first_release/
+datasets/webqa-mmpoisonrag/extracted_images/
 
 # Secrets
 OpenAI_key.txt
