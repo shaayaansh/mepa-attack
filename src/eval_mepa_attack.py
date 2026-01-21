@@ -26,8 +26,13 @@ from typing import List
 from sklearn.metrics.pairwise import cosine_similarity
 import torch
 from PIL import Image
+from sentence_transformers import SentenceTransformer
 from transformers import CLIPModel, CLIPProcessor
+from eval_rag import exact_match_mmqa, exact_match_webqa, extract_final_answer
 
+
+SEM_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
+sem_model = SentenceTransformer(SEM_MODEL_ID, device=("cuda" if torch.cuda.is_available() else "cpu"))
 
 CLIP_MODEL_ID = "openai/clip-vit-base-patch32"
 CACHE_DIR = "/scratch/shayan/hf_cache"  # same as run_rag.py
@@ -44,6 +49,17 @@ clip_processor = CLIPProcessor.from_pretrained(
     CLIP_MODEL_ID,
     cache_dir=CACHE_DIR
 )
+
+
+def cos_sim(u: np.ndarray, v: np.ndarray) -> float:
+    u = u / (np.linalg.norm(u) + 1e-12)
+    v = v / (np.linalg.norm(v) + 1e-12)
+    return float(np.dot(u, v))
+
+def embed_texts(texts: list[str]) -> np.ndarray:
+    # returns (n, d) numpy array
+    emb = sem_model.encode(texts, convert_to_numpy=True, normalize_embeddings=True)
+    return emb
 
 
 def normalize(text: str) -> str:
@@ -167,8 +183,6 @@ def clip_cosine(image: Image.Image, text: str) -> float:
     return float((img_emb * txt_emb).sum())
 
 
-
-
 def evaluate(results_path: str, k: int, defense_threshold: float):
     data = json.load(open(results_path))
 
@@ -178,7 +192,7 @@ def evaluate(results_path: str, k: int, defense_threshold: float):
     detector_flags = []
 
     for e in data:
-        # Retrieval
+        # Retrieval metrics
         ro = retrieval_recall_orig_at_k(e, k)
         if ro is not None:
             r_orig.append(ro)
@@ -187,29 +201,35 @@ def evaluate(results_path: str, k: int, defense_threshold: float):
         if pois_r is not None:
             r_pois.append(pois_r)
 
-        # Answer metrics
+        
+        # Answer metrics (from eval_rag.py)
+        pred = extract_final_answer(e.get("model_answer", ""))
         gold_answers = e.get("gold_answers", [])
 
-        if not gold_answers:
-            golds = []
-        elif isinstance(gold_answers[0], str):
-            # WebQA
-            golds = gold_answers
+        # WebQA
+        if gold_answers and isinstance(gold_answers[0], str):
+            qcate = e.get("question_type")  # may be None
+            acc_orig.append(
+                exact_match_webqa(pred, gold_answers, qcate)
+            )
+
+        # MMQA
         else:
-            # MMQA
-            golds = [ga["answer"] for ga in gold_answers]
+            golds = [ga["answer"] for ga in gold_answers] if gold_answers else []
+            acc_orig.append(
+                exact_match_mmqa(pred, golds)
+            )
 
-        acc_orig.append(exact_match(e["model_answer"], golds))
-
+        # Attack Success Rate (use final answer only)
         if e.get("poison_injected", False):
             acc_pois.append(
                 contains_attack_string(
-                    e["model_answer"],
+                    pred,
                     e["poison_caption"]
                 )
             )
 
-        # Cohesion / Detection
+        # Cohesion / Detection metrics
         sim = mean_image_metadata_similarity(
             e,
             image_root=args.image_root,
@@ -218,7 +238,9 @@ def evaluate(results_path: str, k: int, defense_threshold: float):
 
         if sim is not None:
             cohesion_sims.append(sim)
-            detector_flags.append(detector_flagged(sim, defense_threshold))
+            detector_flags.append(
+                detector_flagged(sim, defense_threshold)
+            )
 
     results = {
         f"ROrig@{k}": float(np.mean(r_orig)) if r_orig else None,
@@ -236,9 +258,6 @@ def evaluate(results_path: str, k: int, defense_threshold: float):
     return results
 
 
-# -----------------------------
-# CLI
-# -----------------------------
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
