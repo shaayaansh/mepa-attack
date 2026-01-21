@@ -137,3 +137,84 @@ The evaluation output is printed directly to the terminal and can be used to
 compare clean versus poisoned RAG performance.
 
 
+
+## Evaluating MEPA Attacks (Retrieval, Answer, and Cohesion Metrics)
+
+In addition to standard RAG accuracy evaluation, we provide a unified evaluation
+script for **MEPA-style multimodal poisoning attacks**. This script measures
+whether poisoned evidence is retrieved, whether the model adopts the attacker’s
+narrative, and whether simple image–text consistency defenses can detect the
+attack.
+
+The evaluation supports **both MMQA and WebQA**, automatically handling
+dataset-specific schema differences.
+
+---
+
+### Running the MEPA Evaluation
+
+From the repository root, run:
+
+```bash
+python src/eval_mepa_attack.py <RESULTS_JSON> \
+  --k 3 \
+  --defense_threshold 0.7 \
+  --image_root <PATH_TO_IMAGE_DIRECTORY>
+```
+
+### Example
+```bash
+python src/eval_mepa_attack.py \
+  results/rag_clip_llava_mmqa_poisoned.json \
+  --k 3 \
+  --defense_threshold 0.7 \
+  --image_root datasets/mmqa/final_dataset_images
+```
+
+
+### Metrics Reported
+
+The evaluation script reports three groups of metrics:
+
+---
+
+#### A) Retrieval Metrics
+
+- **ROrig@k**  
+  Retrieval recall of original (gold) evidence: the fraction of questions for
+  which at least one gold image appears in the top-k retrieved images.  
+  *(Defined only for MMQA, where gold image supervision is available.)*
+
+- **RPois@k**  
+  Retrieval recall of poisoned evidence: the fraction of poisoned questions for
+  which the adversarial (poisoned) caption appears in the top-k retrieved
+  captions.
+
+---
+
+#### B) Answer Metrics
+
+- **ACCOrig_EM**  
+  Exact-match accuracy of the model’s answer against the gold answer(s).
+
+- **ACCPois_ASR (Attack Success Rate)**  
+  Fraction of poisoned questions for which the model’s answer adopts the
+  attacker’s narrative, measured via string matching against the injected
+  poison caption.
+
+---
+
+#### C) Cohesion / Detection Metrics
+
+- **Mean_Image_Metadata_Sim**  
+  Mean cosine similarity between CLIP image embeddings and CLIP text embeddings
+  for retrieved (image, caption) pairs in poisoned examples.
+
+- **DetectionRate@τ**  
+  Fraction of poisoned examples flagged by a simple image–text consistency
+  detector that marks an item as suspicious if the CLIP cosine similarity is
+  below a threshold τ (e.g., 0.7).
+
+
+
+
