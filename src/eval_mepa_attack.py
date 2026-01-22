@@ -31,14 +31,6 @@ from transformers import CLIPModel, CLIPProcessor
 from eval_rag import exact_match_mmqa, exact_match_webqa, extract_final_answer
 
 
-BERT_MODEL_NAME = "bert-base-uncased"
-
-bert_tokenizer = AutoTokenizer.from_pretrained(BERT_MODEL_NAME)
-bert_model = AutoModel.from_pretrained(BERT_MODEL_NAME)
-
-bert_model.eval()
-bert_model.to("cuda" if torch.cuda.is_available() else "cpu")
-
 CLIP_MODEL_ID = "openai/clip-vit-base-patch32"
 CACHE_DIR = "/scratch/shayan/hf_cache"  # same as run_rag.py
 
@@ -56,32 +48,6 @@ clip_processor = CLIPProcessor.from_pretrained(
     cache_dir=CACHE_DIR
 )
 
-
-def bert_embed(texts: list[str]) -> torch.Tensor:
-    """
-    Returns L2-normalized [CLS] embeddings for a list of texts.
-    Shape: (n, hidden_dim)
-    """
-    inputs = bert_tokenizer(
-        texts,
-        return_tensors="pt",
-        padding=True,
-        truncation=True,
-        max_length=128
-    ).to(bert_model.device)
-
-    with torch.no_grad():
-        outputs = bert_model(**inputs)
-        cls_emb = outputs.last_hidden_state[:, 0, :]  # [CLS]
-
-    cls_emb = torch.nn.functional.normalize(cls_emb, dim=1)
-    return cls_emb
-
-
-def cos_sim(u: torch.Tensor, v: torch.Tensor) -> float:
-    return float(torch.sum(u * v))
-
-
 def normalize(text: str) -> str:
     if text is None:
         return ""
@@ -95,11 +61,6 @@ def normalize(text: str) -> str:
 def exact_match(pred: str, golds: List[str]) -> bool:
     pred = normalize(pred)
     return any(pred == normalize(g) for g in golds)
-
-
-def contains_attack_string(pred: str, poison: str) -> bool:
-    return normalize(poison) in normalize(pred)
-
 
 
 # Retrieval Metrics
@@ -247,30 +208,8 @@ def evaluate(results_path: str, k: int, defense_threshold: float):
                 exact_match_mmqa(pred, golds)
             )
 
-        # --------------------
-        # Semantic ASR
-        # --------------------
-        # if e.get("poison_injected", False) and golds:
-        #     poison = e["poison_caption"]
-        #     print(f"POISON CAPTION IS : {poison}")
-        #     texts = [pred, poison] + golds
-        #     embs = bert_embed(texts)
-
-        #     pred_emb = embs[0]
-        #     poison_emb = embs[1]
-        #     gold_embs = embs[2:]
-
-        #     sim_ap = cos_sim(pred_emb, poison_emb)
-        #     sim_ag_best = max(cos_sim(pred_emb, g) for g in gold_embs)
-
-        #     gap = sim_ap - sim_ag_best
-        #     gap_sem.append(gap)
-
-        #     asr_sem_flags.append(int(gap > 0.0))
-
-        # --------------------
+        
         # Exact-Match ASR (lexical adoption only)
-        # --------------------
         if e.get("poison_injected", False) and golds:
             poison = e["poison_caption"]
 
@@ -290,10 +229,7 @@ def evaluate(results_path: str, k: int, defense_threshold: float):
             else:
                 asr_sem_flags.append(0)
 
-
-        # --------------------
         # Cohesion / Detection
-        # --------------------
         sim = mean_image_metadata_similarity(
             e,
             image_root=args.image_root,
