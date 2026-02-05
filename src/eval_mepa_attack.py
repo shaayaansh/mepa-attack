@@ -28,7 +28,9 @@ import torch
 from PIL import Image
 from transformers import AutoTokenizer, AutoModel
 from transformers import CLIPModel, CLIPProcessor
-from eval_rag import exact_match_mmqa, exact_match_webqa, extract_final_answer
+from src.eval_rag import exact_match_mmqa, exact_match_webqa, extract_final_answer
+from tabulate import tabulate
+
 
 
 CLIP_MODEL_ID = "openai/clip-vit-base-patch32"
@@ -260,16 +262,46 @@ def evaluate(results_path: str, k: int, defense_threshold: float):
 
 
 
+# if __name__ == "__main__":
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument("results_json", help="Path to RAG results JSON")
+#     parser.add_argument("--k", type=int, default=3, help="Top-k for retrieval metrics")
+#     parser.add_argument(
+#         "--defense_threshold",
+#         type=float,
+#         default=0.7,
+#         help="Cosine similarity threshold for detector",
+#     )
+#     parser.add_argument(
+#         "--image_root",
+#         type=str,
+#         required=True,
+#         help="Path to MMQA image directory"
+#     )
+
+
+#     args = parser.parse_args()
+
+#     metrics = evaluate(
+#         args.results_json,
+#         args.k,
+#         args.defense_threshold,
+#     )
+
+#     print("\n=== MEPA-Attack Evaluation ===")
+#     for k, v in metrics.items():
+#         print(f"{k:25s}: {v}")
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("results_json", help="Path to RAG results JSON")
-    parser.add_argument("--k", type=int, default=3, help="Top-k for retrieval metrics")
     parser.add_argument(
-        "--defense_threshold",
-        type=float,
-        default=0.7,
-        help="Cosine similarity threshold for detector",
+        "results_path",
+        help="Path to a results JSON file OR a directory of result files"
     )
+    parser.add_argument("--k", type=int, default=3)
+    parser.add_argument("--defense_threshold", type=float, default=0.2)
     parser.add_argument(
         "--image_root",
         type=str,
@@ -277,15 +309,81 @@ if __name__ == "__main__":
         help="Path to MMQA image directory"
     )
 
-
     args = parser.parse_args()
 
-    metrics = evaluate(
-        args.results_json,
-        args.k,
-        args.defense_threshold,
-    )
+    if os.path.isdir(args.results_path):
+        result_files = [
+            os.path.join(args.results_path, f)
+            for f in sorted(os.listdir(args.results_path))
+            if f.endswith(".json")
+        ]
+    else:
+        result_files = [args.results_path]
 
-    print("\n=== MEPA-Attack Evaluation ===")
-    for k, v in metrics.items():
-        print(f"{k:25s}: {v}")
+    print(f"Found {len(result_files)} result files")
+
+
+    all_results = []
+
+    for path in result_files:
+        print(f"\nEvaluating: {os.path.basename(path)}")
+
+        metrics = evaluate(
+            path,
+            args.k,
+            args.defense_threshold,
+        )
+
+        metrics["File"] = os.path.basename(path)
+        all_results.append(metrics)
+
+    print("\n=== MEPA-Attack Evaluation Summary ===")
+
+    # keys = [
+    #     "File",
+    #     f"ROrig@{args.k}",
+    #     f"RPois@{args.k}",
+    #     "ACCOrig_EM",
+    #     "ASR",
+    #     "Mean_Image_Metadata_Sim",
+    #     f"DetectionRate@{args.defense_threshold}",
+    #     "NumSamples",
+    #     "NumPoisoned",
+    # ]
+
+    # header = " | ".join(f"{k:>25s}" for k in keys)
+    # print(header)
+    # print("-" * len(header))
+
+    # for r in all_results:
+    #     row = " | ".join(
+    #         f"{str(r.get(k, 'NA')):>25s}" for k in keys
+    #     )
+    #     print(row)
+    print("\n=== MEPA-Attack Evaluation Summary ===")
+
+    columns = [
+        "File",
+        f"ROrig@{args.k}",
+        f"RPois@{args.k}",
+        "ACCOrig_EM",
+        "ASR",
+        "Mean_Image_Metadata_Sim",
+        f"DetectionRate@{args.defense_threshold}",
+        "NumSamples",
+        "NumPoisoned",
+    ]
+
+    table = []
+    for r in all_results:
+        row = [r.get(col, "NA") for col in columns]
+        table.append(row)
+
+    print(tabulate(
+        table,
+        headers=columns,
+        tablefmt="github",   # looks great in terminals + markdown
+        floatfmt=".3f"
+    ))
+
+

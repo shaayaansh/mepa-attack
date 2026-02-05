@@ -1,8 +1,9 @@
+import torch
+
 class RAGModel:
     """
     Multimodal RAG wrapper that orchestrates retrieval and generation.
     """
-
     def __init__(
         self,
         retriever,
@@ -24,18 +25,38 @@ class RAGModel:
         """
         Retrieve top-k image and text indices given a question.
         """
+        # Embedding-based retrievers (CLIP family)
         query_emb = self.retriever.encode_text([question])
-
         image_embs = self.retriever.encode_images(images)
         text_embs  = self.retriever.encode_text(texts)
 
         image_scores = self.retriever.score_images(query_emb, image_embs)[0]
         text_scores  = self.retriever.score_texts(query_emb, text_embs)[0]
 
-        top_image_idx = image_scores.topk(self.top_k_images).indices.tolist()
-        top_text_idx  = text_scores.topk(self.top_k_texts).indices.tolist()
+        # Ensure they're tensors (not model outputs)
+        if not isinstance(image_scores, torch.Tensor):
+            image_scores = torch.tensor(image_scores)
+        if not isinstance(text_scores, torch.Tensor):
+            text_scores = torch.tensor(text_scores)
 
-        return top_image_idx, top_text_idx, image_scores, text_scores
+        # Detach from computation graph if needed
+        image_scores = image_scores.detach()
+        text_scores = text_scores.detach()
+
+        # Get top-k
+        top_k_images = min(self.top_k_images, len(image_scores))
+        top_k_texts = min(self.top_k_texts, len(text_scores))
+
+        top_image_result = image_scores.topk(top_k_images)
+        top_text_result = text_scores.topk(top_k_texts)
+
+        top_image_indices = top_image_result.indices
+        top_text_indices = top_text_result.indices
+
+        top_image_idx = top_image_indices.cpu().tolist()
+        top_text_idx  = top_text_indices.cpu().tolist()
+
+        return top_image_idx, top_text_idx, image_scores, text_scores, top_image_indices, top_text_indices
 
     def build_prompt(
         self,
@@ -43,9 +64,7 @@ class RAGModel:
         retrieved_texts: list,
         num_images: int
     ) -> str:
-
         image_tokens = "<image>" * num_images
-
         context = "\n".join(f"- {t.strip()}" for t in retrieved_texts)
 
         return (
@@ -68,7 +87,7 @@ class RAGModel:
         """
         Full RAG forward pass.
         """
-        top_image_idx, top_text_idx, image_scores, text_scores = self.retrieve(
+        top_image_idx, top_text_idx, image_scores, text_scores, top_image_indices, top_text_indices = self.retrieve(
             question, images, texts
         )
 
@@ -87,10 +106,14 @@ class RAGModel:
             max_new_tokens=max_new_tokens
         )
 
+        # Get selected scores using tensor indices
+        selected_image_scores = image_scores[top_image_indices].detach().cpu().tolist()
+        selected_text_scores = text_scores[top_text_indices].detach().cpu().tolist()
+
         return {
             "answer": answer,
             "retrieved_image_indices": top_image_idx,
             "retrieved_text_indices": top_text_idx,
-            "image_scores": image_scores[top_image_idx].tolist(),
-            "text_scores": text_scores[top_text_idx].tolist(),
+            "image_scores": selected_image_scores,
+            "text_scores": selected_text_scores,
         }
