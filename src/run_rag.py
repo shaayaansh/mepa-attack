@@ -5,18 +5,14 @@ os.environ["HF_HOME"] = "/scratch/shayan/hf_cache"
 os.environ["HF_DATASETS_CACHE"] = "/scratch/shayan/hf_cache"
 os.environ["HUGGINGFACE_HUB_CACHE"] = "/scratch/shayan/hf_cache"
 
-
 import json
 from tqdm import tqdm
-
 from src.retriever import Retriever
 from src.generator import Generator
 from src.rag_model import RAGModel
 from src.utils import load_mmqa_json, load_images_from_metadata
 
-# =========================
 # Paths / config
-# =========================
 
 CACHE_DIR = "/scratch/shayan/hf_cache"
 
@@ -43,7 +39,7 @@ RETRIEVERS = {
 }
 
 GENERATORS = {
-    # "llava": "llava-hf/llava-1.5-7b-hf",
+    "llava": "llava-hf/llava-1.5-7b-hf",
     "blip2": "Salesforce/blip2-flan-t5-xl",
 }
 
@@ -64,9 +60,8 @@ def main():
     data = load_mmqa_json(DATA_PATH)
     print(f"Loaded {len(data)} examples")
 
-    # -------------------------
+    
     # Loop over model configs
-    # -------------------------
     for retriever_type, retriever_id in RETRIEVERS.items():
         for generator_type, generator_id in GENERATORS.items():
 
@@ -116,9 +111,8 @@ def main():
                 if not images:
                     continue
 
-                # -------------------------
+                
                 # Build caption pool
-                # -------------------------
                 texts = []
 
                 for img_id in image_ids:
@@ -144,9 +138,7 @@ def main():
                 if not texts:
                     continue
 
-                # -------------------------
                 # Run RAG
-                # -------------------------
                 try:
                     output = rag.generate(
                         question=question,

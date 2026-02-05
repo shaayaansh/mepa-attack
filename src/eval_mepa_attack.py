@@ -34,7 +34,7 @@ from tabulate import tabulate
 
 
 CLIP_MODEL_ID = "openai/clip-vit-base-patch32"
-CACHE_DIR = "/scratch/shayan/hf_cache"  # same as run_rag.py
+CACHE_DIR = "/scratch/shayan/hf_cache"
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -177,9 +177,8 @@ def evaluate(results_path: str, k: int, defense_threshold: float):
     detector_flags = []
 
     for e in data:
-        # --------------------
+        
         # Retrieval metrics
-        # --------------------
         ro = retrieval_recall_orig_at_k(e, k)
         if ro is not None:
             r_orig.append(ro)
@@ -188,9 +187,7 @@ def evaluate(results_path: str, k: int, defense_threshold: float):
         if pois_r is not None:
             r_pois.append(pois_r)
 
-        # --------------------
         # Answer metrics (EM)
-        # --------------------
         pred = extract_final_answer(e.get("model_answer", ""))
         gold_answers = e.get("gold_answers", [])
         # print(f"FINAL ANSWER: {pred} and GOLD ANSWER: {gold_answers}")
@@ -227,7 +224,7 @@ def evaluate(results_path: str, k: int, defense_threshold: float):
             elif pred_norm and pred_norm in poison_norm:
                 asr_sem_flags.append(1)
 
-            # Otherwise → NOT attack success
+            # Otherwise : NOT attack success
             else:
                 asr_sem_flags.append(0)
 
@@ -259,38 +256,6 @@ def evaluate(results_path: str, k: int, defense_threshold: float):
     }
 
     return results
-
-
-
-# if __name__ == "__main__":
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument("results_json", help="Path to RAG results JSON")
-#     parser.add_argument("--k", type=int, default=3, help="Top-k for retrieval metrics")
-#     parser.add_argument(
-#         "--defense_threshold",
-#         type=float,
-#         default=0.7,
-#         help="Cosine similarity threshold for detector",
-#     )
-#     parser.add_argument(
-#         "--image_root",
-#         type=str,
-#         required=True,
-#         help="Path to MMQA image directory"
-#     )
-
-
-#     args = parser.parse_args()
-
-#     metrics = evaluate(
-#         args.results_json,
-#         args.k,
-#         args.defense_threshold,
-#     )
-
-#     print("\n=== MEPA-Attack Evaluation ===")
-#     for k, v in metrics.items():
-#         print(f"{k:25s}: {v}")
 
 
 
@@ -339,29 +304,6 @@ if __name__ == "__main__":
 
     print("\n=== MEPA-Attack Evaluation Summary ===")
 
-    # keys = [
-    #     "File",
-    #     f"ROrig@{args.k}",
-    #     f"RPois@{args.k}",
-    #     "ACCOrig_EM",
-    #     "ASR",
-    #     "Mean_Image_Metadata_Sim",
-    #     f"DetectionRate@{args.defense_threshold}",
-    #     "NumSamples",
-    #     "NumPoisoned",
-    # ]
-
-    # header = " | ".join(f"{k:>25s}" for k in keys)
-    # print(header)
-    # print("-" * len(header))
-
-    # for r in all_results:
-    #     row = " | ".join(
-    #         f"{str(r.get(k, 'NA')):>25s}" for k in keys
-    #     )
-    #     print(row)
-    print("\n=== MEPA-Attack Evaluation Summary ===")
-
     columns = [
         "File",
         f"ROrig@{args.k}",
@@ -382,7 +324,7 @@ if __name__ == "__main__":
     print(tabulate(
         table,
         headers=columns,
-        tablefmt="github",   # looks great in terminals + markdown
+        tablefmt="github",  
         floatfmt=".3f"
     ))
 
