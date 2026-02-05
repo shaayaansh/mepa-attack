@@ -315,13 +315,13 @@ if __name__ == "__main__":
         result_files = [
             os.path.join(args.results_path, f)
             for f in sorted(os.listdir(args.results_path))
-            if f.endswith(".json")
+            if f.endswith(".json") and "baseline" not in f.lower()
         ]
     else:
-        result_files = [args.results_path]
-
-    print(f"Found {len(result_files)} result files")
-
+        if "baseline" in args.results_path.lower():
+            result_files = []
+        else:
+            result_files = [args.results_path]
 
     all_results = []
 
