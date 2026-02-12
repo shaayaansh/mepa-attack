@@ -33,7 +33,7 @@ DATA_PATH = f"{DATASET_ROOT}/WebQA_test_image.json"
 IMAGE_DIR = f"{DATASET_ROOT}/extracted_images"
 POISONED_METADATA_PATH = f"{DATASET_ROOT}/WebQA_image_metadata_poisoned.json"
 
-USE_POISONED_CAPTIONS = True  # False = clean, True = attack
+USE_POISONED_CAPTIONS = False  # False = clean, True = attack
 
 os.makedirs("results", exist_ok=True)
 

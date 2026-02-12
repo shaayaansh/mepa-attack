@@ -25,7 +25,7 @@ DATA_PATH = f"{DATASET_ROOT}/MMQA_test_image.json"
 
 IMAGE_DIR = "datasets/mmqa/final_dataset_images"
 
-USE_POISONED_CAPTIONS = True   # False = clean baseline, True = attack
+USE_POISONED_CAPTIONS = False   # False = clean baseline, True = attack
 
 os.makedirs("results", exist_ok=True)
 
