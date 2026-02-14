@@ -50,7 +50,7 @@ RETRIEVERS = {
 }
 
 GENERATORS = {
-    # "llava": "llava-hf/llava-1.5-7b-hf",
+    "llava": "llava-hf/llava-1.5-7b-hf",
     "blip2": "Salesforce/blip2-flan-t5-xl",
 }
 
@@ -82,6 +82,9 @@ def main():
 
     print(f"Loaded {len(data)} WebQA test examples")
 
+    # set K
+    K = 2 
+
     # -------------------------
     # Loop over model configs
     # -------------------------
@@ -107,14 +110,14 @@ def main():
             rag = RAGModel(
                 retriever=retriever,
                 generator=generator,
-                top_k_images=3,
-                top_k_texts=3
+                top_k_images=K,
+                top_k_texts=K
             )
 
             output_file = (
-                f"results/rag_{retriever_type}_{generator_type}_webqa_poisoned.json"
+                f"results/rag_{retriever_type}_{generator_type}_webqa_poisoned_k={K}.json"
                 if USE_POISONED_CAPTIONS
-                else f"results/rag_{retriever_type}_{generator_type}_webqa_clean.json"
+                else f"results/rag_{retriever_type}_{generator_type}_webqa_clean_k={K}.json"
             )
 
             results = []
@@ -122,8 +125,41 @@ def main():
             print("Running RAG inference...")
             for guid, ex in tqdm(data.items()):
 
+                # question = ex["Q"].strip('"')
+                # gold_answers = [a.strip('"') for a in ex["A"]]
+
                 question = ex["Q"].strip('"')
-                gold_answers = [a.strip('"') for a in ex["A"]]
+
+                # Long-form answers
+                gold_texts = [a.strip('"') for a in ex.get("A", [])]
+
+                # Official EM answer
+                gold_em = ex.get("EM")
+
+                # Gold image IDs (positive facts only)
+                pos_facts = ex.get("img_posFacts", [])
+                image_instances = [
+                    {
+                        "doc_id": str(fact["image_id"]),
+                        "doc_part": "image"
+                    }
+                    for fact in pos_facts
+                ]
+
+                # Structured gold_answers (MMQA-style format)
+                gold_answers = [
+                    {
+                        "answer": gold_text,
+                        "EM": gold_em,
+                        "type": "string",
+                        "modality": "image",
+                        "text_instances": [],
+                        "table_indices": [],
+                        "image_instances": image_instances
+                    }
+                    for gold_text in gold_texts
+                ]
+
 
                 evidence = ex.get("img_posFacts", []) + ex.get("img_negFacts", [])
 

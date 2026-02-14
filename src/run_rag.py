@@ -21,11 +21,12 @@ DATASET_ROOT = f"datasets/{DATASET_NAME}"
 
 IMAGE_METADATA_PATH = f"{DATASET_ROOT}/MMQA_image_metadata.json"
 POISONED_METADATA_PATH = f"{DATASET_ROOT}/MMQA_image_metadata_poisoned.json"
+
 DATA_PATH = f"{DATASET_ROOT}/MMQA_test_image.json"
 
 IMAGE_DIR = "datasets/mmqa/final_dataset_images"
 
-USE_POISONED_CAPTIONS = False   # False = clean baseline, True = attack
+USE_POISONED_CAPTIONS = True   # False = clean baseline, True = attack
 
 os.makedirs("results", exist_ok=True)
 
@@ -40,7 +41,7 @@ RETRIEVERS = {
 
 GENERATORS = {
     "llava": "llava-hf/llava-1.5-7b-hf",
-    "blip2": "Salesforce/blip2-flan-t5-xl",
+    # "blip2": "Salesforce/blip2-flan-t5-xl",
 }
 
 
@@ -60,6 +61,8 @@ def main():
     data = load_mmqa_json(DATA_PATH)
     print(f"Loaded {len(data)} examples")
 
+    # set K
+    K = 1
     
     # Loop over model configs
     for retriever_type, retriever_id in RETRIEVERS.items():
@@ -84,14 +87,14 @@ def main():
             rag = RAGModel(
                 retriever=retriever,
                 generator=generator,
-                top_k_images=3,
-                top_k_texts=3
+                top_k_images=K,
+                top_k_texts=K
             )
 
             output_file = (
-                f"results/rag_{retriever_type}_{generator_type}_mmqa_poisoned.json"
+                f"results/rag_{retriever_type}_{generator_type}_mmqa_poisoned_k={K}.json"
                 if USE_POISONED_CAPTIONS
-                else f"results/rag_{retriever_type}_{generator_type}_mmqa_clean.json"
+                else f"results/rag_{retriever_type}_{generator_type}_mmqa_clean_k={K}.json"
             )
 
             results = []
