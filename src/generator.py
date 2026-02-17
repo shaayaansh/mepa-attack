@@ -100,23 +100,26 @@ class Generator:
 
 
     def _generate_blip2(self, prompt, images, max_new_tokens):
+        # FIX: Ensure images is always a list
+        if images is not None and not isinstance(images, list):
+            images = [images]
+        
         inputs = self.processor(
             images=images,   
             text=prompt,
             return_tensors="pt"
         )
-
         inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
-
+        
         with torch.no_grad():
             output_ids = self.model.generate(
                 **inputs,
                 max_new_tokens=max_new_tokens
             )
-
+        
         answer = self.processor.batch_decode(
             output_ids,
             skip_special_tokens=True
         )[0]
-
+        
         return answer

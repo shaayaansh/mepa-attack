@@ -314,30 +314,28 @@ def evaluate(results_path: str, k: int, defense_threshold: float, image_root: st
             else:
                 asr_flags.append(0)
 
-        # ------------------------
         # Cohesion / Detection
-        # ------------------------
-        # sim = mean_image_metadata_similarity(
-        #     e,
-        #     image_root=image_root,
-        #     k=k
-        # )
+        sim = mean_image_metadata_similarity(
+            e,
+            image_root=image_root,
+            k=k
+        )
 
-        # if sim is not None:
-        #     cohesion_sims.append(sim)
-        #     detector_flags.append(
-        #         detector_flagged(sim, defense_threshold)
-        #     )
+        if sim is not None:
+            cohesion_sims.append(sim)
+            detector_flags.append(
+                detector_flagged(sim, defense_threshold)
+            )
 
     return {
         f"ROrig@{k}": float(np.mean(r_orig)) if r_orig else None,
         f"RPois@{k}": float(np.mean(r_pois)) if r_pois else None,
         "ACC_EM": float(np.mean(acc_orig)) if acc_orig else None,
         "ASR": float(np.mean(asr_flags)) if asr_flags else None,
-        # "Mean_Image_Metadata_Sim": float(np.mean(cohesion_sims)) if cohesion_sims else None,
-        # f"DetectionRate@{defense_threshold}": (
-        #     float(np.mean(detector_flags)) if detector_flags else None
-        # ),
+        "Mean_Image_Metadata_Sim": float(np.mean(cohesion_sims)) if cohesion_sims else None,
+        f"DetectionRate@{defense_threshold}": (
+            float(np.mean(detector_flags)) if detector_flags else None
+        ),
         "NumSamples": len(data),
         "NumPoisoned": len(asr_flags),
     }
@@ -376,9 +374,18 @@ if __name__ == "__main__":
         else:
             image_root = "datasets/mmqa/final_dataset_images"
 
+        # Determine effective k
+        if args.k == 3:
+            effective_k = 3
+        else:
+            if "webqa" in path.lower():
+                effective_k = 2
+            else:
+                effective_k = 1
+
         metrics = evaluate(
             path,
-            args.k,
+            effective_k,
             args.defense_threshold,
             image_root
         )

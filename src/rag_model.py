@@ -58,24 +58,64 @@ class RAGModel:
 
         return top_image_idx, top_text_idx, image_scores, text_scores, top_image_indices, top_text_indices
 
+    # def build_prompt(
+    #     self,
+    #     question: str,
+    #     retrieved_texts: list,
+    #     num_images: int
+    # ) -> str:
+    #     image_tokens = "<image>" * num_images
+    #     context = "\n".join(f"- {t.strip()}" for t in retrieved_texts)
+
+    #     return (
+    #         f"USER: {image_tokens}\n"
+    #         "Use the following information to answer the question.\n\n"
+    #         f"{context}\n\n"
+    #         f"Question: {question}\n\n"
+    #         "Answer with ONLY the final answer. "
+    #         "Do NOT include explanations, descriptions, or extra text.\n"
+    #         "ASSISTANT:"
+    #     )
+
     def build_prompt(
         self,
         question: str,
         retrieved_texts: list,
-        num_images: int
+        num_images: int,
+        model_type: str
     ) -> str:
-        image_tokens = "<image>" * num_images
-        context = "\n".join(f"- {t.strip()}" for t in retrieved_texts)
-
-        return (
-            f"USER: {image_tokens}\n"
-            "Use the following information to answer the question.\n\n"
-            f"{context}\n\n"
-            f"Question: {question}\n\n"
-            "Answer with ONLY the final answer. "
-            "Do NOT include explanations, descriptions, or extra text.\n"
-            "ASSISTANT:"
-        )
+        """
+        Build prompt based on model type.
+        """
+        if model_type == "llava":
+            # LLaVA uses <image> tokens
+            image_tokens = "<image>" * num_images
+            context = "\n".join(f"- {t.strip()}" for t in retrieved_texts if t.strip())
+            return (
+                f"USER: {image_tokens}\n"
+                "Use the following information to answer the question.\n\n"
+                f"{context}\n\n"
+                f"Question: {question}\n\n"
+                "Answer with ONLY the final answer. "
+                "Do NOT include explanations, descriptions, or extra text.\n"
+                "ASSISTANT:"
+            )
+        
+        elif model_type == "blip2":
+            # BLIP2 uses the simple "Question: {} Answer:" format
+            # NO image tokens, NO complex formatting
+            # Context can be included as natural text before the question
+            context = " ".join(t.strip() for t in retrieved_texts if t.strip())
+            
+            if context:
+                # Include context as part of the prompt
+                return f"{context} Question: {question} Answer:"
+            else:
+                # Simple question-answer format
+                return f"Question: {question} Answer:"
+        
+        else:
+            raise ValueError(f"Unknown model type: {model_type}")
 
     def generate(
         self,
@@ -97,7 +137,8 @@ class RAGModel:
         prompt = self.build_prompt(
             question=question,
             retrieved_texts=top_texts,
-            num_images=len(top_images)
+            num_images=len(top_images),
+            model_type=self.generator.model_type 
         )
 
         answer = self.generator.generate(
