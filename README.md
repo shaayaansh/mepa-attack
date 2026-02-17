@@ -114,6 +114,64 @@ Each entry is keyed by image ID and may contain multiple poisoned captions
 corresponding to different queries.
 
 
+
+---
+
+## Running the Multimodal RAG Pipeline
+
+The main RAG pipeline is implemented in `src/run_rag.py`.  
+It supports clean evaluation, metadata poisoning, and robustness testing via
+command-line flags.
+
+All runs are executed from the repository root using:
+
+```bash
+python -m src.run_rag [FLAGS]
+```
+
+### Available Flags
+
+- `--use_poison`  
+  Injects query-specific poisoned captions into the candidate caption pool.
+
+- `--robustness`  
+  Replaces original user queries with paraphrased versions (for robustness evaluation).
+
+- `--k <int>`  
+  Sets the number of retrieved images and captions (`top_k_images = top_k_texts = k`).
+
+By default:
+- `use_poison = False`
+- `robustness = False`
+- `k = 1`
+
+---
+
+### Clean Baseline
+
+```bash
+python -m src.run_rag --k 1
+```
+
+outputs are saved to
+
+```bash
+results/clean_results/
+```
+
+### Poisoned setting
+
+```bash
+python -m src.run_rag --use_poison --k 1
+```
+
+### Robustness Evaluation setting (using paraphrased queries)
+
+```bash
+python -m src.run_rag --use_poison --robustness --k 1
+```
+
+
 ## Evaluating RAG Performance
 
 After running the RAG pipeline, evaluate the generated results using the
@@ -213,7 +271,7 @@ The evaluation script reports three groups of metrics:
 - **DetectionRate@τ**  
   Fraction of poisoned examples flagged by a simple image–text consistency
   detector that marks an item as suspicious if the CLIP cosine similarity is
-  below a threshold τ (e.g., 0.7).
+  below a threshold τ (e.g., 0.2).
 
 
 
