@@ -5,6 +5,7 @@ os.environ["HF_HOME"] = "/scratch/shayan/hf_cache"
 os.environ["HF_DATASETS_CACHE"] = "/scratch/shayan/hf_cache"
 os.environ["HUGGINGFACE_HUB_CACHE"] = "/scratch/shayan/hf_cache"
 
+import argparse
 import json
 from tqdm import tqdm
 from src.retriever import Retriever
@@ -21,14 +22,22 @@ DATASET_ROOT = f"datasets/{DATASET_NAME}"
 
 IMAGE_METADATA_PATH = f"{DATASET_ROOT}/MMQA_image_metadata.json"
 POISONED_METADATA_PATH = f"{DATASET_ROOT}/MMQA_image_metadata_poisoned.json"
-
 DATA_PATH = f"{DATASET_ROOT}/MMQA_test_image.json"
+PARAPHRASE_PATH = (
+    "/scratch/shayan/Projects/mepa-attack/results/paraphrased_questions/"
+    "mmqa_paraphrased_questions.json"
+)
+
 
 IMAGE_DIR = "datasets/mmqa/final_dataset_images"
 
-USE_POISONED_CAPTIONS = False   # False = clean baseline, True = attack
+CLEAN_RESULTS_DIR = "/scratch/shayan/Projects/mepa-attack/results/clean_results"
+POISON_RESULTS_DIR = "/scratch/shayan/Projects/mepa-attack/results/mmqa_results"
+ROBUSTNESS_RESULTS_DIR = "/scratch/shayan/Projects/mepa-attack/results/robustness_results"
 
-os.makedirs("results", exist_ok=True)
+os.makedirs(CLEAN_RESULTS_DIR, exist_ok=True)
+os.makedirs(POISON_RESULTS_DIR, exist_ok=True)
+os.makedirs(ROBUSTNESS_RESULTS_DIR, exist_ok=True)
 
 
 # Model grids
@@ -40,12 +49,24 @@ RETRIEVERS = {
 }
 
 GENERATORS = {
-    # "llava": "llava-hf/llava-1.5-7b-hf",
-    "blip2": "Salesforce/blip2-flan-t5-xl",
+    "llava": "llava-hf/llava-1.5-7b-hf",
+    # "blip2": "Salesforce/blip2-flan-t5-xl",
 }
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--use_poison", action="store_true",
+                        help="Use poisoned captions")
+    parser.add_argument("--robustness", action="store_true",
+                        help="Use paraphrased queries")
+    parser.add_argument("--k", type=int, default=1)
+
+    args = parser.parse_args()
+
+    USE_POISONED_CAPTIONS = args.use_poison
+    ROBUSTNESS_MODE = args.robustness
+    K = args.k
 
     print("Loading image metadata...")
     with open(IMAGE_METADATA_PATH, "r") as f:
@@ -61,8 +82,17 @@ def main():
     data = load_mmqa_json(DATA_PATH)
     print(f"Loaded {len(data)} examples")
 
-    # set K
-    K = 1
+    paraphrase_map = None
+    if ROBUSTNESS_MODE:
+        print("Loading paraphrased questions...")
+        with open(PARAPHRASE_PATH, "r") as f:
+            paraphrase_data = json.load(f)
+
+        paraphrase_map = {
+            entry["qid"]: entry["paraphrased_question"]
+            for entry in paraphrase_data
+        }
+
     
     # Loop over model configs
     for retriever_type, retriever_id in RETRIEVERS.items():
@@ -91,18 +121,30 @@ def main():
                 top_k_texts=K
             )
 
+            if ROBUSTNESS_MODE:
+                save_dir = ROBUSTNESS_RESULTS_DIR
+                suffix = "robustness"
+            elif USE_POISONED_CAPTIONS:
+                save_dir = POISON_RESULTS_DIR
+                suffix = "poisoned"
+            else:
+                save_dir = CLEAN_RESULTS_DIR
+                suffix = "clean"
+
             output_file = (
-                f"results/rag_{retriever_type}_{generator_type}_mmqa_poisoned_k={K}.json"
-                if USE_POISONED_CAPTIONS
-                else f"results/rag_{retriever_type}_{generator_type}_mmqa_clean_k={K}.json"
+                f"{save_dir}/rag_{retriever_type}_{generator_type}_mmqa_{suffix}_k={K}.json"
             )
 
             results = []
-
             print("Running RAG inference...")
             for ex in tqdm(data):
 
-                question = ex["question"]
+                qid = ex.get("qid")
+                if ROBUSTNESS_MODE:
+                    question = paraphrase_map.get(qid, ex["question"])
+                else:
+                    question = ex["question"]
+
                 gold_answers = ex.get("answers", [])
 
                 images, image_ids = load_images_from_metadata(
@@ -130,7 +172,7 @@ def main():
                             continue
 
                         for poison_entry in poisoned_metadata[img_id].get("poisoned", []):
-                            if poison_entry["query"] == question:
+                            if poison_entry["query"] == ex["question"]:
                                 injected_poison = poison_entry["poisoned_candidates"][0]
                                 texts.append(injected_poison)
                                 break
@@ -199,5 +241,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
