@@ -2,7 +2,7 @@ import os
 import json
 from tqdm import tqdm
 from PIL import Image
-
+import argparse
 from src.retriever import Retriever
 from src.generator import Generator
 from src.rag_model import RAGModel
@@ -22,10 +22,8 @@ os.environ["TRANSFORMERS_CACHE"] = "/scratch/shayan/hf_cache"
 CACHE_DIR = "/scratch/shayan/hf_cache"
 
 
-# =========================
-# Dataset paths
-# =========================
 
+# paths
 DATASET_NAME = "webqa-mmpoisonrag"
 DATASET_ROOT = f"datasets/{DATASET_NAME}"
 
@@ -33,15 +31,22 @@ DATA_PATH = f"{DATASET_ROOT}/WebQA_test_image.json"
 IMAGE_DIR = f"{DATASET_ROOT}/extracted_images"
 POISONED_METADATA_PATH = f"{DATASET_ROOT}/WebQA_image_metadata_poisoned.json"
 
-USE_POISONED_CAPTIONS = False  # False = clean, True = attack
+PARAPHRASE_PATH = (
+    "/scratch/shayan/Projects/mepa-attack/results/paraphrased_questions/"
+    "webqa_paraphrased_questions.json"
+)
 
-os.makedirs("results", exist_ok=True)
+CLEAN_RESULTS_DIR = "/scratch/shayan/Projects/mepa-attack/results/clean_results"
+POISON_RESULTS_DIR = "/scratch/shayan/Projects/mepa-attack/results/webqa_results"
+ROBUSTNESS_RESULTS_DIR = "/scratch/shayan/Projects/mepa-attack/results/robustness_results"
+
+os.makedirs(CLEAN_RESULTS_DIR, exist_ok=True)
+os.makedirs(POISON_RESULTS_DIR, exist_ok=True)
+os.makedirs(ROBUSTNESS_RESULTS_DIR, exist_ok=True)
 
 
-# =========================
-# Model grids (MATCH MMQA)
-# =========================
 
+# Model grids
 RETRIEVERS = {
     "clip": "openai/clip-vit-base-patch32",
     "openclip": "laion/CLIP-ViT-H-14-laion2B-s32B-b79K",
@@ -64,11 +69,19 @@ def load_webqa_image(image_id):
     return Image.open(path).convert("RGB")
 
 
-# =========================
-# Main
-# =========================
-
 def main():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--use_poison", action="store_true",
+                        help="Use poisoned captions")
+    parser.add_argument("--robustness", action="store_true",
+                        help="Use paraphrased queries")
+    parser.add_argument("--k", type=int, default=2)
+
+    args = parser.parse_args()
+    USE_POISONED_CAPTIONS = args.use_poison
+    ROBUSTNESS_MODE = args.robustness
+    K = args.k
 
     poisoned_metadata = None
     if USE_POISONED_CAPTIONS:
@@ -82,12 +95,18 @@ def main():
 
     print(f"Loaded {len(data)} WebQA test examples")
 
-    # set K
-    K = 2 
+    paraphrase_map = None
+    if ROBUSTNESS_MODE:
+        print("Loading paraphrased questions...")
+        with open(PARAPHRASE_PATH, "r") as f:
+            paraphrase_data = json.load(f)
 
-    # -------------------------
+        paraphrase_map = {
+            entry["qid"]: entry["paraphrased_question"]
+            for entry in paraphrase_data
+        }
+
     # Loop over model configs
-    # -------------------------
     for retriever_type, retriever_id in RETRIEVERS.items():
         for generator_type, generator_id in GENERATORS.items():
 
@@ -114,10 +133,18 @@ def main():
                 top_k_texts=K
             )
 
+            if ROBUSTNESS_MODE:
+                save_dir = ROBUSTNESS_RESULTS_DIR
+                suffix = "robustness"
+            elif USE_POISONED_CAPTIONS:
+                save_dir = POISON_RESULTS_DIR
+                suffix = "poisoned"
+            else:
+                save_dir = CLEAN_RESULTS_DIR
+                suffix = "clean"
+
             output_file = (
-                f"results/rag_{retriever_type}_{generator_type}_webqa_poisoned_k={K}.json"
-                if USE_POISONED_CAPTIONS
-                else f"results/rag_{retriever_type}_{generator_type}_webqa_clean_k={K}.json"
+                f"{save_dir}/rag_{retriever_type}_{generator_type}_webqa_{suffix}_k={K}.json"
             )
 
             results = []
@@ -125,10 +152,13 @@ def main():
             print("Running RAG inference...")
             for guid, ex in tqdm(data.items()):
 
-                # question = ex["Q"].strip('"')
-                # gold_answers = [a.strip('"') for a in ex["A"]]
+                original_question = ex["Q"].strip('"')
 
-                question = ex["Q"].strip('"')
+                if ROBUSTNESS_MODE:
+                    question = paraphrase_map.get(guid, original_question)
+                else:
+                    question = original_question
+
 
                 # Long-form answers
                 gold_texts = [a.strip('"') for a in ex.get("A", [])]
@@ -189,7 +219,7 @@ def main():
                 injected_poison = None
 
                 if USE_POISONED_CAPTIONS and poisoned_metadata is not None:
-                    q_norm = " ".join(question.split()).strip().lower()
+                    q_norm = " ".join(original_question.split()).strip().lower()
 
                     for img_id in image_ids:
                         key = str(img_id)
@@ -238,9 +268,10 @@ def main():
                 results.append({
                     "qid": guid,
                     "question": question,
+                    "original_question": original_question,
                     "model_answer": output["answer"],
                     "gold_answers": gold_answers,
-
+                    # TODO: add EM gold answers to results
                     # Candidate pool
                     "associated_images": image_ids,
                     "associated_captions": texts,
