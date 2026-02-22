@@ -41,6 +41,12 @@ from src.eval_rag import (
 CLIP_MODEL_ID = "openai/clip-vit-base-patch32"
 CACHE_DIR = "/scratch/shayan/hf_cache"
 
+with open("/scratch/shayan/Projects/mepa-attack/datasets/mmqa-mmpoisonrag/MMQA_image_metadata.json") as f:
+    MMQA_METADATA = json.load(f)
+
+with open("/scratch/shayan/Projects/mepa-attack/datasets/webqa-mmpoisonrag/WebQA_caption_test.json") as f:
+    WEBQA_CAPTIONS = json.load(f)
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 clip_model = CLIPModel.from_pretrained(
@@ -98,23 +104,40 @@ def get_gold_image_ids(entry):
     return set()
 
 
-def retrieval_recall_orig_at_k(entry, k: int):
-    gold_imgs = {str(g) for g in get_gold_image_ids(entry)}
+def get_gold_captions(entry, is_webqa=False):
+    gold_caps = set()
 
-    if not gold_imgs:
+    for ga in entry.get("gold_answers", []):
+        for inst in ga.get("image_instances", []):
+            doc_id = str(inst["doc_id"])
+
+            if is_webqa:
+                if doc_id in WEBQA_CAPTIONS:
+                    gold_caps.add(WEBQA_CAPTIONS[doc_id])
+            else:
+                if doc_id in MMQA_METADATA:
+                    gold_caps.add(MMQA_METADATA[doc_id]["caption"])
+
+    return gold_caps
+
+
+def retrieval_recall_orig_at_k(entry, k: int, is_webqa=False):
+    gold_caps = get_gold_captions(entry, is_webqa=is_webqa)
+
+    if not gold_caps:
         return None
 
-    retrieved = {
-        str(r) for r in entry.get("retrieved_image_ids", [])[:k]
-    }
+    retrieved_caps = entry.get("retrieved_captions", [])[:k]
 
-    return int(len(gold_imgs & retrieved) > 0)
+    return int(any(normalize(cap) in 
+                   {normalize(g) for g in gold_caps}
+                   for cap in retrieved_caps))
 
 
 def retrieval_recall_pois_at_k(entry, k: int):
+    # Always return 0/1 so denominator matches ROrig
     if not entry.get("poison_injected", False):
-        return None
-
+        return 0
     retrieved_caps = entry.get("retrieved_captions", [])[:k]
     return int(entry.get("poison_caption") in retrieved_caps)
 
@@ -242,6 +265,7 @@ def evaluate(results_path: str, k: int, defense_threshold: float, image_root: st
 
     data = json.load(open(results_path))
 
+    is_webqa = "webqa" in results_path.lower()
     if "webqa" in results_path.lower():
         webqa_gold_path = (
             "/scratch/shayan/Projects/mepa-attack/"
@@ -261,7 +285,7 @@ def evaluate(results_path: str, k: int, defense_threshold: float, image_root: st
         # ------------------------
         # Retrieval
         # ------------------------
-        ro = retrieval_recall_orig_at_k(e, k)
+        ro = retrieval_recall_orig_at_k(e, k, is_webqa=is_webqa)
         if ro is not None:
             r_orig.append(ro)
 
@@ -285,6 +309,7 @@ def evaluate(results_path: str, k: int, defense_threshold: float, image_root: st
                     int(normalize(pred) == normalize(gold_em))
                 )
                 golds = [gold_em]
+                print(f"NORMALIZED PRED: {normalize(pred)} AND NORMALIZED GOLD EM: {normalize(gold_em)}")
 
             # Otherwise → MMQA
             else:
@@ -315,27 +340,27 @@ def evaluate(results_path: str, k: int, defense_threshold: float, image_root: st
                 asr_flags.append(0)
 
         # Cohesion / Detection
-        sim = mean_image_metadata_similarity(
-            e,
-            image_root=image_root,
-            k=k
-        )
+        # sim = mean_image_metadata_similarity(
+        #     e,
+        #     image_root=image_root,
+        #     k=k
+        # )
 
-        if sim is not None:
-            cohesion_sims.append(sim)
-            detector_flags.append(
-                detector_flagged(sim, defense_threshold)
-            )
+        # if sim is not None:
+        #     cohesion_sims.append(sim)
+        #     detector_flags.append(
+        #         detector_flagged(sim, defense_threshold)
+        #     )
 
     return {
         f"ROrig@{k}": float(np.mean(r_orig)) if r_orig else None,
         f"RPois@{k}": float(np.mean(r_pois)) if r_pois else None,
         "ACC_EM": float(np.mean(acc_orig)) if acc_orig else None,
         "ASR": float(np.mean(asr_flags)) if asr_flags else None,
-        "Mean_Image_Metadata_Sim": float(np.mean(cohesion_sims)) if cohesion_sims else None,
-        f"DetectionRate@{defense_threshold}": (
-            float(np.mean(detector_flags)) if detector_flags else None
-        ),
+        # "Mean_Image_Metadata_Sim": float(np.mean(cohesion_sims)) if cohesion_sims else None,
+        # f"DetectionRate@{defense_threshold}": (
+        #     float(np.mean(detector_flags)) if detector_flags else None
+        # ),
         "NumSamples": len(data),
         "NumPoisoned": len(asr_flags),
     }

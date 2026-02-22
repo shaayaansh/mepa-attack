@@ -53,7 +53,6 @@ GENERATORS = {
     # "blip2": "Salesforce/blip2-flan-t5-xl",
 }
 
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--use_poison", action="store_true",
@@ -155,7 +154,6 @@ def main():
 
                 if not images:
                     continue
-
                 
                 # Build caption pool
                 texts = []
