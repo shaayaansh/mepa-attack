@@ -309,7 +309,7 @@ def evaluate(results_path: str, k: int, defense_threshold: float, image_root: st
                     int(normalize(pred) == normalize(gold_em))
                 )
                 golds = [gold_em]
-                print(f"NORMALIZED PRED: {normalize(pred)} AND NORMALIZED GOLD EM: {normalize(gold_em)}")
+                # print(f"NORMALIZED PRED: {normalize(pred)} AND NORMALIZED GOLD EM: {normalize(gold_em)}")
 
             # Otherwise → MMQA
             else:
