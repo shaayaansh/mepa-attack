@@ -1,6 +1,6 @@
-# MEPA-Attack
+# MM-MEPA Attack
 
-MEPA-Attack is a research codebase for studying attacks on multimodal
+MM-MEPA attack is a research codebase for metadata attack on multimodal
 Retrieval-Augmented Generation (RAG) systems.
 
 The framework supports multimodal retrievers (e.g., CLIP) and generators
